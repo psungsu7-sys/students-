@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>학생 행동 누가기록장</title>
+  <style>
+    :root {
+      --primary-color: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg-color: #f1f5f9;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-sub: #64748b;
+      --border-color: #cbd5e1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      background-color: var(--card-bg);
+      width: 100%;
+      max-width: 480px;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+    }
+
+    header {
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin-bottom: 6px;
+    }
+
+    header p {
+      font-size: 0.9rem;
+      color: var(--text-sub);
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    select, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, textarea:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    textarea {
+      height: 140px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background-color: var(--primary-color);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s, opacity 0.2s;
+    }
+
+    button:hover {
+      background-color: var(--primary-hover);
+    }
+
+    button:disabled {
+      background-color: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .status-msg {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      text-align: center;
+      display: none;
+    }
+
+    .status-msg.success {
+      background-color: #dcfce7;
+      color: #15803d;
+    }
+
+    .status-msg.error {
+      background-color: #fee2e2;
+      color: #b91c1c;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>📝 행동 누가기록</h1>
+      <p>관찰한 학생의 행동을 바로 기록하세요.</p>
+    </header>
+
+    <div class="form-group">
+      <label for="studentSelect">학생 선택</label>
+      <select id="studentSelect">
+        <option value="">학생 목록을 불러오는 중...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="behaviorRecord">누가기록 내용</label>
+      <textarea id="behaviorRecord" placeholder="관찰한 구체적인 행동이나 사건을 작성하세요."></textarea>
+    </div>
+
+    <button id="saveBtn" onclick="saveRecord()">기록 저장하기</button>
+    <div id="statusMsg" class="status-msg"></div>
+  </div>
+
+  <script>
+    // ⚠️ 아래 주소를 본인의 Google Apps Script 배포 URL로 변경해 주세요!
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzUPVDoqmKMyt5_v9aIIS84QOiHOaGtWXJGEvCwlwOUUTz0BEtwM3WN-lSSAxcjJrIV/exec";
+
+    let studentsList = [];
+
+    // 1. 페이지 로드 시 학생 목록 불러오기
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchStudents();
+    });
+
+    async function fetchStudents() {
+      const select = document.getElementById('studentSelect');
+      try {
+        const response = await fetch(GAS_API_URL);
+        studentsList = await response.json();
+
+        select.innerHTML = '<option value="">-- 학생을 선택하세요 --</option>';
+        studentsList.forEach(student => {
+          const option = document.createElement('option');
+          option.value = student.number;
+          option.textContent = `${student.number}번 ${student.name}`;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        select.innerHTML = '<option value="">목록 불러오기 실패</option>';
+        showMsg("학생 목록을 가져오지 못했습니다. URL을 확인해 주세요.", "error");
+      }
+    }
+
+    // 2. 누가기록 저장하기
+    async function saveRecord() {
+      const select = document.getElementById('studentSelect');
+      const textarea = document.getElementById('behaviorRecord');
+      const saveBtn = document.getElementById('saveBtn');
+
+      const selectedNumber = select.value;
+      const recordText = textarea.value.trim();
+
+      if (!selectedNumber) {
+        alert("학생을 선택해 주세요.");
+        return;
+      }
+      if (!recordText) {
+        alert("기록할 내용을 입력해 주세요.");
+        return;
+      }
+
+      const selectedStudent = studentsList.find(s => s.number == selectedNumber);
+
+      const payload = {
+        number: selectedStudent.number,
+        name: selectedStudent.name,
+        record: recordText
+      };
+
+      // UI 로딩 상태 변경
+      saveBtn.disabled = true;
+      saveBtn.textContent = "저장 중...";
+      hideMsg();
+
+      try {
+        // GAS와의 통신에서는 text/plain 형식으로 전송해야 브라우저 보안(CORS) 오류를 방지할 수 있습니다.
+        await fetch(GAS_API_URL, {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          }
+        });
+
+        showMsg(`${selectedStudent.name} 학생의 기록이 성공적으로 저장되었습니다!`, "success");
+        textarea.value = ""; // 입력창 비우기
+      } catch (error) {
+        showMsg("저장 중 오류가 발생했습니다. 다시 시도해 주세요.", "error");
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "기록 저장하기";
+      }
+    }
+
+    function showMsg(text, type) {
+      const msgBox = document.getElementById('statusMsg');
+      msgBox.textContent = text;
+      msgBox.className = `status-msg ${type}`;
+      msgBox.style.display = 'block';
+    }
+
+    function hideMsg() {
+      document.getElementById('statusMsg').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
